@@ -1,5 +1,5 @@
 import type { Mock } from "vitest";
-import { describe, test, expect, vi, beforeEach } from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import jwt from "jsonwebtoken";
 import { verifyRole } from "../../../src/resolvers/Query/verifyRole";
 import { AppUserProfile } from "../../../src/models/AppUserProfile";
@@ -19,15 +19,27 @@ vi.mock("../../../src/models/AppUserProfile", () => ({
 }));
 describe("verifyRole", () => {
   let req: any;
+  const envBackup: Record<string, string | undefined> = {};
   beforeEach(() => {
     req = {
       headers: {
         authorization: `Bearer ${token}`,
       },
     };
+    envBackup.ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
+    envBackup.TOKEN_VERSION = process.env.TOKEN_VERSION;
+    envBackup.DEFAULT_LANGUAGE_CODE = process.env.DEFAULT_LANGUAGE_CODE;
     vi.restoreAllMocks(); // Reset all mocks before each test
   });
-
+  afterEach(() => {
+    Object.keys(envBackup).forEach((key) => {
+      if (envBackup[key] !== undefined) {
+        process.env[key] = envBackup[key];
+      } else {
+        delete process.env[key];
+      }
+    });
+  });
   test("should return unauthorized when Authorization header is missing", async () => {
     const req = { headers: {} }; // No authorization header
 
@@ -86,6 +98,125 @@ describe("verifyRole", () => {
     if (verifyRole !== undefined) {
       const result = await verifyRole({}, {}, { req });
       expect(result).toEqual({ role: "", isAuthorized: false });
+    } else {
+      throw new Error("verifyRole is undefined");
+    }
+  });
+
+  test("should throw an error when ACCESS_TOKEN_SECRET property is not defined", async () => {
+    // Remove ACCESS_TOKEN_SECRET property from process.env
+    delete process.env.ACCESS_TOKEN_SECRET;
+    const req = { headers: { authorization: "Bearer validToken" } };
+    if (verifyRole !== undefined) {
+      const result = await verifyRole({}, {}, { req });
+      expect(result).toEqual({
+        role: "",
+        isAuthorized: false,
+        error: "Authentication failed",
+      });
+    } else {
+      throw new Error("verifyRole is undefined");
+    }
+  });
+  test("should default TOKEN_VERSION to 0 when not set", async () => {
+    // Backup original TOKEN_VERSION and delete it
+    delete process.env.TOKEN_VERSION; // Ensure it's undefined
+    const req = { headers: { authorization: "Bearer validToken" } };
+
+    if (verifyRole !== undefined) {
+      vi.spyOn(jwt, "verify").mockImplementationOnce(() => {
+        return { userId: "user123" };
+      });
+
+      (AppUserProfile.findOne as Mock).mockResolvedValue({
+        userId: "user123",
+        isSuperAdmin: false,
+        adminFor: [],
+      });
+
+      await verifyRole({}, {}, { req });
+
+      expect(AppUserProfile.findOne).toHaveBeenCalledWith({
+        userId: "user123",
+        appLanguageCode: process.env.DEFAULT_LANGUAGE_CODE || "en",
+        tokenVersion: 0, // Expecting default value when TOKEN_VERSION is not set
+      });
+    } else {
+      throw new Error("verifyRole is undefined");
+    }
+  });
+  test("should correctly parse TOKEN_VERSION when it is set", async () => {
+    process.env.TOKEN_VERSION = "5";
+    const req = { headers: { authorization: "Bearer validToken" } };
+    if (verifyRole !== undefined) {
+      vi.spyOn(jwt, "verify").mockImplementationOnce(() => {
+        return { userId: "user123" };
+      });
+      (AppUserProfile.findOne as Mock).mockResolvedValue({
+        userId: "user123",
+        isSuperAdmin: false,
+        adminFor: [],
+      });
+      await verifyRole({}, {}, { req });
+      expect(AppUserProfile.findOne).toHaveBeenCalledWith({
+        userId: "user123",
+        appLanguageCode: process.env.DEFAULT_LANGUAGE_CODE || "en",
+        tokenVersion: 5, // Expecting parsed integer value
+      });
+    } else {
+      throw new Error("verifyRole is undefined");
+    }
+  });
+  test("should use DEFAULT_LANGUAGE_CODE when it is set", async () => {
+    process.env.DEFAULT_LANGUAGE_CODE = "fr"; // Set to French
+    const req = { headers: { authorization: "Bearer validToken" } };
+    if (verifyRole !== undefined) {
+      vi.spyOn(jwt, "verify").mockImplementationOnce(() => {
+        return { userId: "user123" };
+      });
+      (AppUserProfile.findOne as Mock).mockResolvedValue({
+        userId: "user123",
+        isSuperAdmin: false,
+        adminFor: [],
+      });
+
+      await verifyRole({}, {}, { req });
+
+      expect(AppUserProfile.findOne).toHaveBeenCalledWith({
+        userId: "user123",
+        appLanguageCode: "fr", // Should use the set value
+        tokenVersion: process.env.TOKEN_VERSION
+          ? parseInt(process.env.TOKEN_VERSION)
+          : 0,
+      });
+    } else {
+      throw new Error("verifyRole is undefined");
+    }
+  });
+  test("should default DEFAULT_LANGUAGE_CODE to 'en' when not set", async () => {
+    delete process.env.DEFAULT_LANGUAGE_CODE;
+    const req = { headers: { authorization: "Bearer validToken" } };
+
+    if (verifyRole !== undefined) {
+      vi.spyOn(jwt, "verify").mockImplementationOnce(() => {
+        return { userId: "user123" };
+      });
+
+      (AppUserProfile.findOne as Mock).mockResolvedValue({
+        userId: "user123",
+        isSuperAdmin: false,
+        adminFor: [],
+      });
+
+      await verifyRole({}, {}, { req });
+
+      expect(AppUserProfile.findOne).toHaveBeenCalledWith({
+        userId: "user123",
+        appLanguageCode: "en", // Should default to 'en'
+        tokenVersion: process.env.TOKEN_VERSION
+          ? parseInt(process.env.TOKEN_VERSION)
+          : 0,
+      });
     } else {
       throw new Error("verifyRole is undefined");
     }
