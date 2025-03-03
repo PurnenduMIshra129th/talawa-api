@@ -67,21 +67,22 @@ builder.queryField("signIn", (t) =>
 					},
 				});
 			}
-
-			if (
-				!(await verify(existingUser.passwordHash, parsedArgs.input.password))
-			) {
-				throw new TalawaGraphQLError({
-					extensions: {
-						code: "invalid_arguments",
-						issues: [
-							{
-								argumentPath: ["input", "password"],
-								message: "This password is invalid.",
-							},
-						],
-					},
-				});
+			if (existingUser.passwordHash) {
+				if (
+					!(await verify(existingUser.passwordHash, parsedArgs.input.password))
+				) {
+					throw new TalawaGraphQLError({
+						extensions: {
+							code: "invalid_arguments",
+							issues: [
+								{
+									argumentPath: ["input", "password"],
+									message: "This password is invalid.",
+								},
+							],
+						},
+					});
+				}
 			}
 
 			// TODO: The following code is necessary for continuing the expected graph traversal for unauthenticated clients that triggered this operation because of absence of an authentication context for those clients. This should be removed when authentication flows are seperated from the graphql implementation.

@@ -6,7 +6,7 @@
 
 > **Venue**: *typeof* `venuesTable.$inferSelect` & `object`
 
-Defined in: [src/graphql/types/Venue/Venue.ts:8](https://github.com/Suyash878/talawa-api/blob/2164956a3cfab8e53ec86349b53a841816d69cde/src/graphql/types/Venue/Venue.ts#L8)
+Defined in: [src/graphql/types/Venue/Venue.ts:8](https://github.com/PalisadoesFoundation/talawa-api/blob/4f56a5331bd7a5f784e82913103662f37b427f3e/src/graphql/types/Venue/Venue.ts#L8)
 
 ## Type declaration
 
